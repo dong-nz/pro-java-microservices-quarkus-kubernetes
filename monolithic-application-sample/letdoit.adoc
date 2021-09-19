@@ -1,0 +1,113 @@
+= Build and Run the application in local env
+:icons: font
+
+Start postgres docker
+
+[source,shell]
+----
+docker run -d --name demo-postgres \
+-e POSTGRES_USER=developer \
+-e POSTGRES_PASSWORD=p4SSW0rd \
+-e POSTGRES_DB=demo \
+-p 5432:5432 postgres:13
+----
+
+Start sonarqube docker
+
+[source,shell]
+----
+docker run -d --name sonarqube \
+-p 9000:9000 \
+-p 9092:9092 \
+sonarqube:8.4.1-community
+----
+
+Start keycloak docker
+
+[source,shell]
+----
+docker run -d --name docker-keycloak \
+-e KEYCLOAK_USER=admin \
+-e KEYCLOAK_PASSWORD=admin \
+-e DB_VENDOR=h2 \
+-p 9080:8080 \
+-p 8443:8443 \
+-p 9990:9990 \
+jboss/keycloak:11.0.0
+----
+
+Open http://localhost:9080/ to access keycloak
+
+Configure quarkushop realm follow Chapter 4
+
+Check if you configured correctly
+[source, shell]
+----
+curl -X POST http://localhost:9080/auth/realms/quarkushop-realm/protocol/openid-connect/token \
+-H 'content-type: application/x-www-form-urlencoded' \
+-d 'client_id=quarkushop' \
+-d 'username=dong.nguyen' \
+-d 'password=12345' \
+-d 'grant_type=password' | jq '.'
+----
+
+TIP: Install `jq` for command line json processing
+
+[source, shell]
+----
+brew install jq
+----
+
+Copy access_token and check jwt token on jwt.io
+
+[source, shell]
+----
+curl -X POST http://localhost:9080/auth/realms/quarkushop-realm/protocol/openid-connect/token \
+-H 'content-type: application/x-www-form-urlencoded' \
+-d 'client_id=quarkushop' \
+-d 'username=dong.nguyen' \
+-d 'password=12345' \
+-d 'grant_type=password' | jq --raw-output '.access_token' | pbcopy
+----
+
+TIP: Use `pbcopy` | `pbpaste` to copy from command line
+
+After added authentication for protected resources, it can be verified by following commands
+
+[source, shell]
+----
+export access_token=$(curl -X POST http://localhost:9080/auth/realms/quarkushop-realm/protocol/openid-connect/token \
+-H 'content-type: application/x-www-form-urlencoded' \
+-d 'client_id=quarkushop' \
+-d 'username=dong.nguyen' \
+-d 'password=12345' \
+-d 'grant_type=password' | jq --raw-output '.access_token')
+
+curl -X GET -H "Authorization: Bearer $access_token" http://localhost:8080/api/user/current/info | jq '.'
+
+curl -X GET -H "Authorization: Bearer $access_token" http://localhost:8080/api/user/current/info/claims | jq '.'
+
+curl -X GET -H "Authorization: Bearer $access_token" http://localhost:8080/api/user/current/info-alternative | jq '.'
+----
+
+Get access_token by username and password via `TokenService`. Now you can use http://localhost:8080/api/q/swagger-ui[swagger-ui]
+
+[source, shell]
+----
+curl -X 'POST' \
+  'http://localhost:8080/api/user/access-token?password=12345&username=dong.nguyen' \
+  -H 'accept: text/plain' \
+  -d ''
+----
+
+Configure `prometheus` monitoring
+
+[source, shell]
+----
+docker run \
+    -p 9090:9090 \
+    -v /path/to/prometheus.yml:/etc/prometheus/prometheus.yml \
+    prom/prometheus
+----
+
+TIP: For running prometheus docker on Mac, the `localhost` target  should be replaced by `docker.for.mac.host.internal`. It points to host machine address running docker engine. https://docs.docker.com/config/daemon/prometheus/[Read document in docker]
